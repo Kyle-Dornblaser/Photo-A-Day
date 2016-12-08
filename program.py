@@ -3,6 +3,8 @@ import sys
 import os
 import math
 import shutil
+import exifread
+import datetime
 
 class Face(object):
     area = 0
@@ -13,6 +15,13 @@ class Face(object):
 
     def scaleFactor(self, desiredArea):
         return math.sqrt(1.0 * desiredArea / self.area)
+
+    def dateTaken(self):
+        f = open(self.path, 'rb')
+        tags = exifread.process_file(f)
+        # TODO add time into the method instead of just chopping it off
+        date = datetime.datetime.strptime(str(tags["EXIF DateTimeOriginal"])[:-9], '%Y:%m:%d')
+        return date.strftime("%B %d")
 
 cascPath = 'haarcascade_frontalface_default.xml'
 
@@ -63,6 +72,13 @@ for imageName in images:
         skipped += 1
 print "Could not find faces in {0} photos".format(skipped)
 
+def writeText(image, text):
+    origin = (1000, 1000)
+    color = (255, 255, 255)
+    cv2.putText(image, text, origin, cv2.FONT_HERSHEY_SIMPLEX, 5, color, 4, cv2.CV_AA)
+    return image
+
+
 def resizeAndCrop():
     for face in facesList:
         scaleFactor = face.scaleFactor(750 * 750)
@@ -87,8 +103,8 @@ def resizeAndCrop():
             os.remove(face.path)
         else:
             cropped = resized[topBorder:bottomBorder, leftBorder:rightBorder]
-            cv2.imwrite(face.path, cropped)
-
+            image = writeText(cropped, face.dateTaken())
+            cv2.imwrite(face.path, image)
 # necessary for outputting to video
 def renameAsNumbers(directory):
     images = os.listdir(directory)
@@ -103,7 +119,6 @@ def renameAsNumbers(directory):
             newName = "0" + newName
         os.rename(directory + image, "{0}{1}{2}".format(directory, newName, filetype))
         counter += 1
-
 
 resizeAndCrop()
 renameAsNumbers(subdirectory)
