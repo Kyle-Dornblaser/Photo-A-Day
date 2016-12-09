@@ -5,6 +5,7 @@ import math
 import shutil
 import exifread
 import datetime
+from ffmpy import FFmpeg
 
 class Face(object):
     area = 0
@@ -24,14 +25,12 @@ class Face(object):
         return date.strftime("%B %d")
 
 cascPath = 'haarcascade_frontalface_default.xml'
-
 faceCascade = cv2.CascadeClassifier(cascPath)
 facesList = []
 directory = '/home/kyle/Projects/Photo A Day/Photos/'
 subdirectoryName = 'temp/'
 subdirectory = directory + subdirectoryName
 images = os.listdir(directory)
-
 try:
     os.makedirs(subdirectory)
 except OSError:
@@ -41,7 +40,6 @@ skipped = 0
 for imageName in images:
     # Read the image
     imagePath = directory + imageName
-    #print imagePath
     image = cv2.imread(imagePath)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -54,7 +52,7 @@ for imageName in images:
         flags = cv2.cv.CV_HAAR_SCALE_IMAGE
     )
 
-    newPath =  subdirectory + imageName
+    newPath = subdirectory + imageName
     largestFace = None
 
     for (x, y, w, h) in faces:
@@ -70,6 +68,8 @@ for imageName in images:
         shutil.copyfile(imagePath, newPath)
     else:
         skipped += 1
+
+
 print "Could not find faces in {0} photos".format(skipped)
 
 def writeText(image, text):
@@ -77,7 +77,6 @@ def writeText(image, text):
     color = (255, 255, 255)
     cv2.putText(image, text, origin, cv2.FONT_HERSHEY_SIMPLEX, 5, color, 4, cv2.CV_AA)
     return image
-
 
 def resizeAndCrop():
     for face in facesList:
@@ -120,12 +119,24 @@ def renameAsNumbers(directory):
         os.rename(directory + image, "{0}{1}{2}".format(directory, newName, filetype))
         counter += 1
 
+def createVideo(directory):
+    os.chdir(directory)
+    images = os.listdir(directory)
+    length = len(os.path.basename(directory + images[0])[0])
+    ff = FFmpeg(
+        inputs={},
+        outputs={'../out.mp4': '-framerate 3 -i %0{0}d.jpg -c:v libx264 -r 30 -pix_fmt yuv420p'.format(length)}
+    )
+    ff.run()
+    os.chdir('..')
+    filepath = os.path.abspath(os.curdir) + '/out.mp4'
+    print 'Your video is complete and located at {0}'.format(filepath)
+
 resizeAndCrop()
+print 'Check photos in {0} and delete or manually fix any that did not resize properly.'.format(subdirectory)
+raw_input("Press Enter to continue...")
 renameAsNumbers(subdirectory)
-
-
-
-
+createVideo(subdirectory)
 
 #cleanup
-#shutil.rmtree(subdirectory)
+shutil.rmtree(subdirectory)
