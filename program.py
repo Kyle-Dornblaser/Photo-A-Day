@@ -37,6 +37,7 @@ except OSError:
     if not os.path.isdir(subdirectory):
         raise
 skipped = 0
+count = 1
 for imageName in images:
     # Read the image
     imagePath = directory + imageName
@@ -68,6 +69,9 @@ for imageName in images:
         shutil.copyfile(imagePath, newPath)
     else:
         skipped += 1
+    if (count % 10 == 0):
+        print '{0}/{1} files processed. {2} skipped.'.format(count, len(images), skipped)
+    count += 1
 
 
 print "Could not find faces in {0} photos".format(skipped)
@@ -79,8 +83,10 @@ def writeText(image, text):
     return image
 
 def resizeAndCrop():
+    count = 1
+    skipped = 0
     for face in facesList:
-        scaleFactor = face.scaleFactor(750 * 750)
+        scaleFactor = face.scaleFactor(1000 * 1000)
         image = cv2.imread(face.path)
         (height, width) = image.shape[:2]
         newDim = (int(width * scaleFactor), int(height * scaleFactor))
@@ -91,19 +97,25 @@ def resizeAndCrop():
         resizedFaceX = int(face.x * scaleFactor)
         resizedFaceH = int(face.h * scaleFactor)
         resizedFaceW = int(face.w * scaleFactor)
-        padding = 100
+        padding = 50
         topBorder = resizedFaceY - (1080 / 2) + resizedFaceH / 2
         bottomBorder = topBorder + (1080)
         leftBorder = resizedFaceX - (1920 / 2) + resizedFaceW / 2
         rightBorder = leftBorder + (1920)
-        print "Name: {0} \t Scale Factor: {1}".format(face.path[-10:], scaleFactor)
+
+        #print "Name: {0} \t Scale Factor: {1}".format(face.path[-10:], scaleFactor)
         if (leftBorder < 0 or bottomBorder < 0):
             print "skipping {0}".format(face.path)
             os.remove(face.path)
+            print 'Left: {0} \t Bottom: {1}'.format(leftBorder, bottomBorder)
+            skipped += 1
         else:
             cropped = resized[topBorder:bottomBorder, leftBorder:rightBorder]
             image = writeText(cropped, face.dateTaken())
             cv2.imwrite(face.path, image)
+        if (count % 10 == 0):
+            print '{0}/{1} images processed. {2} skipped'.format(count, len(facesList), skipped)
+        count += 1
 # necessary for outputting to video
 def renameAsNumbers(directory):
     images = os.listdir(directory)
@@ -122,7 +134,7 @@ def renameAsNumbers(directory):
 def createVideo(directory):
     os.chdir(directory)
     images = os.listdir(directory)
-    length = len(os.path.basename(directory + images[0])[0])
+    length = 3 #len(os.path.basename(directory + images[0])[0])
     ff = FFmpeg(
         inputs={},
         outputs={'../out.mp4': '-framerate 3 -i %0{0}d.jpg -c:v libx264 -r 30 -pix_fmt yuv420p'.format(length)}
