@@ -7,74 +7,93 @@ import exifread
 import datetime
 from ffmpy import FFmpeg
 
-class Face(object):
+class FaceImage(object):
+    cascPath = 'haarcascade_frontalface_default.xml'
+    faceCascade = cv2.CascadeClassifier(cascPath)
     area = 0
     path = ''
-    def __init__(self, width, height, path):
-        self.area = width * height
+    faceFound = False
+    def __init__(self, path):
+        self.update(path)
+
+    def update(self, path):
         self.path = path
+        # Read the image
+        image = cv2.imread(path)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    def scaleFactor(self, desiredArea):
-        return math.sqrt(1.0 * desiredArea / self.area)
+        # Detect faces in the image
+        faces = self.faceCascade.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(400, 400),
+            flags = cv2.cv.CV_HAAR_SCALE_IMAGE
+        )
+        largestArea = None
+        largestIndex = None
+        index = 0
+        for (x, y, w, h) in faces:
+            if (largestArea == None or largestArea < w * h):
+                largestIndex = index
+                largestArea = w * h
+            index += 1
 
-    def dateTaken(self):
+        if (largestIndex != None):
+            self.faceFound = True
+            self.faceX = x
+            self.faceY = y
+            self.faceW = w
+            self.faceH = h
+
+    def move(self, newPath):
+        # copy files to new temp directory to not destroy originals
+        shutil.copyfile(self.path, newPath)
+        self.path = newPath
+
+    def calcScaleFactor(self, desiredArea):
+        return math.sqrt(1.0 * desiredArea / self.getArea())
+
+    def getArea(self):
+        return self.faceH * self.faceW
+
+    def getDateTaken(self):
         f = open(self.path, 'rb')
         tags = exifread.process_file(f)
         # TODO add time into the method instead of just chopping it off
         date = datetime.datetime.strptime(str(tags["EXIF DateTimeOriginal"])[:-9], '%Y:%m:%d')
         return date.strftime("%B %d")
 
-cascPath = 'haarcascade_frontalface_default.xml'
-faceCascade = cv2.CascadeClassifier(cascPath)
+
 facesList = []
 directory = '/home/kyle/Projects/Photo A Day/Photos/'
 subdirectoryName = 'temp/'
 subdirectory = directory + subdirectoryName
 images = os.listdir(directory)
+
 try:
     os.makedirs(subdirectory)
 except OSError:
     if not os.path.isdir(subdirectory):
         raise
-skipped = 0
-count = 1
-for imageName in images:
-    # Read the image
-    imagePath = directory + imageName
-    image = cv2.imread(imagePath)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Detect faces in the image
-    faces = faceCascade.detectMultiScale(
-        gray,
-        scaleFactor=1.1,
-        minNeighbors=5,
-        minSize=(400, 400),
-        flags = cv2.cv.CV_HAAR_SCALE_IMAGE
-    )
+def readFaces():
+    skipped = 0
+    for index, imageName in enumerate(images, start = 1):
+        imagePath = directory + imageName
+        newPath = subdirectory + imageName
 
-    newPath = subdirectory + imageName
-    largestFace = None
+        faceImage = FaceImage(imagePath)
 
-    for (x, y, w, h) in faces:
-        if (largestFace == None or largestFace.area < w * h):
-            largestFace = Face(w, h, newPath)
-            largestFace.x = x
-            largestFace.y = y
-            largestFace.w = w
-            largestFace.h = h
-    if (largestFace != None):
-        facesList.append(largestFace)
-        # copy files to new temp directory to not destroy originals
-        shutil.copyfile(imagePath, newPath)
-    else:
-        skipped += 1
-    if (count % 10 == 0):
-        print '{0}/{1} files processed. {2} skipped.'.format(count, len(images), skipped)
-    count += 1
+        if (faceImage.faceFound):
+            faceImage.move(newPath)
+            facesList.append(faceImage)
+        else:
+            skipped += 1
+        if (index % 10 == 0):
+            print '{0}/{1} files processed. {2} skipped.'.format(index, len(images), skipped)
 
-
-print "Could not find faces in {0} photos".format(skipped)
+    print "Could not find faces in {0} photos".format(skipped)
 
 def writeText(image, text):
     origin = (1000, 1000)
@@ -85,18 +104,18 @@ def writeText(image, text):
 def resizeAndCrop():
     count = 1
     skipped = 0
-    for index, face in enumerate(facesList, start = 1):
-        scaleFactor = face.scaleFactor(1000 * 1000)
-        image = cv2.imread(face.path)
+    for index, faceImage in enumerate(facesList, start = 1):
+        scaleFactor = faceImage.calcScaleFactor(1000 * 1000)
+        image = cv2.imread(faceImage.path)
         (height, width) = image.shape[:2]
         newDim = (int(width * scaleFactor), int(height * scaleFactor))
 
         resized = cv2.resize(image, newDim, interpolation = cv2.INTER_AREA)
 
-        resizedFaceY = int(face.y * scaleFactor)
-        resizedFaceX = int(face.x * scaleFactor)
-        resizedFaceH = int(face.h * scaleFactor)
-        resizedFaceW = int(face.w * scaleFactor)
+        resizedFaceY = int(faceImage.faceY * scaleFactor)
+        resizedFaceX = int(faceImage.faceX * scaleFactor)
+        resizedFaceH = int(faceImage.faceH * scaleFactor)
+        resizedFaceW = int(faceImage.faceW * scaleFactor)
 
         desiredHeight = 1080
         desiredWidth = 1920
@@ -110,11 +129,11 @@ def resizeAndCrop():
         (height, width) = cropped.shape[:2]
 
         if (height != desiredHeight or width != desiredWidth):
-            os.remove(face.path)
+            os.remove(faceImage.path)
             skipped += 1
         else:
-            image = writeText(cropped, face.dateTaken())
-            cv2.imwrite(face.path, image)
+            image = writeText(cropped, faceImage.getDateTaken())
+            cv2.imwrite(faceImage.path, image)
         if (index % 10 == 0):
             print '{0}/{1} images processed. {2} skipped'.format(index, len(facesList), skipped)
 
@@ -145,6 +164,7 @@ def createVideo(directory):
     filepath = os.path.abspath(os.curdir) + '/out.mp4'
     print 'Your video is complete and located at {0}'.format(filepath)
 
+readFaces()
 resizeAndCrop()
 print 'Check photos in {0} and delete or manually fix any that did not resize properly.'.format(subdirectory)
 raw_input("Press Enter to continue...")
