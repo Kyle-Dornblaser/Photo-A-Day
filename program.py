@@ -6,30 +6,45 @@ import shutil
 import exifread
 import datetime
 from ffmpy import FFmpeg
+import numpy as np
 
 class FaceImage(object):
     cascPath = 'haarcascade_frontalface_default.xml'
     faceCascade = cv2.CascadeClassifier(cascPath)
-    area = 0
-    path = ''
-    faceFound = False
+
     def __init__(self, path):
+        self.faceFound = False
         self.update(path)
 
     def update(self, path):
         self.path = path
         # Read the image
         image = cv2.imread(path)
+        (self.height, self.width) = image.shape[:2]
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         # Detect faces in the image
+        smallFace = (100, 100)
+        mediumFace = (250, 250)
+        largeFace = (400, 400)
         faces = self.faceCascade.detectMultiScale(
             gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(400, 400),
+            scaleFactor = 1.1,
+            minNeighbors = 5,
+            minSize = largeFace,
             flags = cv2.cv.CV_HAAR_SCALE_IMAGE
         )
+
+        if (len(faces) == 0):
+            print 'Checking for medium faces.'
+            faces = self.faceCascade.detectMultiScale(
+                gray,
+                scaleFactor = 1.1,
+                minNeighbors = 5,
+                minSize = mediumFace,
+                flags = cv2.cv.CV_HAAR_SCALE_IMAGE
+            )
+
         largestArea = None
         largestIndex = None
         index = 0
@@ -52,9 +67,9 @@ class FaceImage(object):
         self.path = newPath
 
     def calcScaleFactor(self, desiredArea):
-        return math.sqrt(1.0 * desiredArea / self.getArea())
+        return math.sqrt(1.0 * desiredArea / self.getFaceArea())
 
-    def getArea(self):
+    def getFaceArea(self):
         return self.faceH * self.faceW
 
     def getDateTaken(self):
@@ -65,7 +80,7 @@ class FaceImage(object):
         return date.strftime("%B %d")
 
 
-facesList = []
+faceImagesList = []
 directory = '/home/kyle/Projects/Photo A Day/Photos/'
 subdirectoryName = 'temp/'
 subdirectory = directory + subdirectoryName
@@ -87,7 +102,7 @@ def readFaces():
 
         if (faceImage.faceFound):
             faceImage.move(newPath)
-            facesList.append(faceImage)
+            faceImagesList.append(faceImage)
         else:
             skipped += 1
         if (index % 10 == 0):
@@ -101,14 +116,57 @@ def writeText(image, text):
     cv2.putText(image, text, origin, cv2.FONT_HERSHEY_SIMPLEX, 5, color, 4, cv2.CV_AA)
     return image
 
+def largestFaceArea():
+    largest = None
+    faceAreas = []
+    for index, faceImage in enumerate(faceImagesList):
+        faceAreas.append(faceImage.getFaceArea())
+        if (largest == None or largest.getFaceArea() < faceImage.getFaceArea()):
+            largest = faceImage
+
+    faceAreasNP = np.array(faceAreas)
+    np.sort(faceAreasNP)
+    standardDev = np.std(faceAreasNP)
+    mean = np.mean(faceAreasNP)
+
+    # return two standard devations if largest is larger
+    if (largest.getFaceArea() > mean + (2 * standardDev)):
+        return mean + (2 * standardDev)
+    else:
+        return largest.getFaceArea()
+
 def resizeAndCrop():
-    count = 1
+
+    largest = largestFaceArea()
+
+    desiredHeight = 1080
+    desiredWidth = 1920
+
+    wiggleRoom = 0.0
+    heightScaleFactor = 1.0 * desiredHeight / faceImagesList[0].height
+    widthScaleFactor = 1.0 * desiredWidth / faceImagesList[0].width
+
+    #print 2250 * heightScaleFactor
+    print 3000 * widthScaleFactor
+    #print largestFaceH * heightScaleFactor
+    #print largestFaceH * widthScaleFactor
+
+    if (heightScaleFactor >= widthScaleFactor):
+        largestArea = (heightScaleFactor ** 2 + wiggleRoom) * largest
+    else:
+        largestArea = (widthScaleFactor ** 2 + wiggleRoom) * largest
+
+    desiredFaceArea = largestArea
+
     skipped = 0
-    for index, faceImage in enumerate(facesList, start = 1):
-        scaleFactor = faceImage.calcScaleFactor(1000 * 1000)
+    for index, faceImage in enumerate(faceImagesList, start = 1):
+
+        scaleFactor = faceImage.calcScaleFactor(desiredFaceArea)
         image = cv2.imread(faceImage.path)
         (height, width) = image.shape[:2]
         newDim = (int(width * scaleFactor), int(height * scaleFactor))
+
+        print newDim
 
         resized = cv2.resize(image, newDim, interpolation = cv2.INTER_AREA)
 
@@ -116,9 +174,6 @@ def resizeAndCrop():
         resizedFaceX = int(faceImage.faceX * scaleFactor)
         resizedFaceH = int(faceImage.faceH * scaleFactor)
         resizedFaceW = int(faceImage.faceW * scaleFactor)
-
-        desiredHeight = 1080
-        desiredWidth = 1920
 
         topBorder = resizedFaceY - (desiredHeight / 2) + resizedFaceH / 2
         bottomBorder = topBorder + (desiredHeight)
@@ -129,13 +184,14 @@ def resizeAndCrop():
         (height, width) = cropped.shape[:2]
 
         if (height != desiredHeight or width != desiredWidth):
+            print 'H: {0} \t W: {1}'.format(height, width)
             os.remove(faceImage.path)
             skipped += 1
         else:
             image = writeText(cropped, faceImage.getDateTaken())
             cv2.imwrite(faceImage.path, image)
         if (index % 10 == 0):
-            print '{0}/{1} images processed. {2} skipped'.format(index, len(facesList), skipped)
+            print '{0}/{1} images processed. {2} skipped'.format(index, len(faceImagesList), skipped)
 
 # necessary for outputting to video
 def renameAsNumbers(directory):
