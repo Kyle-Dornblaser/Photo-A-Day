@@ -85,7 +85,7 @@ def writeText(image, text):
 def resizeAndCrop():
     count = 1
     skipped = 0
-    for face in facesList:
+    for index, face in enumerate(facesList, start = 1):
         scaleFactor = face.scaleFactor(1000 * 1000)
         image = cv2.imread(face.path)
         (height, width) = image.shape[:2]
@@ -97,44 +97,45 @@ def resizeAndCrop():
         resizedFaceX = int(face.x * scaleFactor)
         resizedFaceH = int(face.h * scaleFactor)
         resizedFaceW = int(face.w * scaleFactor)
-        padding = 50
-        topBorder = resizedFaceY - (1080 / 2) + resizedFaceH / 2
-        bottomBorder = topBorder + (1080)
-        leftBorder = resizedFaceX - (1920 / 2) + resizedFaceW / 2
-        rightBorder = leftBorder + (1920)
 
-        #print "Name: {0} \t Scale Factor: {1}".format(face.path[-10:], scaleFactor)
-        if (leftBorder < 0 or bottomBorder < 0):
-            print "skipping {0}".format(face.path)
+        desiredHeight = 1080
+        desiredWidth = 1920
+
+        topBorder = resizedFaceY - (desiredHeight / 2) + resizedFaceH / 2
+        bottomBorder = topBorder + (desiredHeight)
+        leftBorder = resizedFaceX - (desiredWidth / 2) + resizedFaceW / 2
+        rightBorder = leftBorder + (desiredWidth)
+
+        cropped = resized[topBorder:bottomBorder, leftBorder:rightBorder]
+        (height, width) = cropped.shape[:2]
+
+        if (height != desiredHeight or width != desiredWidth):
             os.remove(face.path)
-            print 'Left: {0} \t Bottom: {1}'.format(leftBorder, bottomBorder)
             skipped += 1
         else:
-            cropped = resized[topBorder:bottomBorder, leftBorder:rightBorder]
             image = writeText(cropped, face.dateTaken())
             cv2.imwrite(face.path, image)
-        if (count % 10 == 0):
-            print '{0}/{1} images processed. {2} skipped'.format(count, len(facesList), skipped)
-        count += 1
+        if (index % 10 == 0):
+            print '{0}/{1} images processed. {2} skipped'.format(index, len(facesList), skipped)
+
 # necessary for outputting to video
 def renameAsNumbers(directory):
     images = os.listdir(directory)
     images.sort()
     numImages = len(images)
     numImagesStrLen = len("{0}".format(numImages))
-    counter = 1
-    for image in images:
+
+    for index, image in enumerate(images, start = 1):
         filetype = image[-4:]
-        newName = "{0}".format(counter)
+        newName = "{0}".format(index)
         while (len(newName) < numImagesStrLen):
             newName = "0" + newName
         os.rename(directory + image, "{0}{1}{2}".format(directory, newName, filetype))
-        counter += 1
 
 def createVideo(directory):
     os.chdir(directory)
     images = os.listdir(directory)
-    length = 3 #len(os.path.basename(directory + images[0])[0])
+    length = len(os.path.splitext(images[0])[0])
     ff = FFmpeg(
         inputs={},
         outputs={'../out.mp4': '-framerate 3 -i %0{0}d.jpg -c:v libx264 -r 30 -pix_fmt yuv420p'.format(length)}
