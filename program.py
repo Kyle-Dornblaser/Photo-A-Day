@@ -111,7 +111,12 @@ def readFaces():
     print "Could not find faces in {0} photos".format(skipped)
 
 def writeText(image, text):
-    origin = (1000, 1000)
+    bottomRight = (1920 - 100, 1080 - 100)
+    textLength = len(text)
+    charWidth = 102
+    # bad right alignment logic
+    bottomRight = (1920 - 100 - textLength * charWidth, 1080 - 100)
+    origin = bottomRight
     color = (255, 255, 255)
     cv2.putText(image, text, origin, cv2.FONT_HERSHEY_SIMPLEX, 5, color, 4, cv2.CV_AA)
     return image
@@ -147,7 +152,7 @@ def resizeAndCrop():
     widthScaleFactor = 1.0 * desiredWidth / faceImagesList[0].width
 
     #print 2250 * heightScaleFactor
-    print 3000 * widthScaleFactor
+    #print 3000 * widthScaleFactor
     #print largestFaceH * heightScaleFactor
     #print largestFaceH * widthScaleFactor
 
@@ -166,7 +171,7 @@ def resizeAndCrop():
         (height, width) = image.shape[:2]
         newDim = (int(width * scaleFactor), int(height * scaleFactor))
 
-        print newDim
+        #print newDim
 
         resized = cv2.resize(image, newDim, interpolation = cv2.INTER_AREA)
 
@@ -184,7 +189,7 @@ def resizeAndCrop():
         (height, width) = cropped.shape[:2]
 
         if (height != desiredHeight or width != desiredWidth):
-            print 'H: {0} \t W: {1}'.format(height, width)
+            #print 'H: {0} \t W: {1}'.format(height, width)
             os.remove(faceImage.path)
             skipped += 1
         else:
