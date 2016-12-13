@@ -79,36 +79,37 @@ class FaceImage(object):
         date = datetime.datetime.strptime(str(tags["EXIF DateTimeOriginal"])[:-9], '%Y:%m:%d')
         return date.strftime("%B %d")
 
+def createTempDir(dirName):
+    try:
+        os.makedirs(subdirectory)
+        print 'Creating temporary directory.'
+    except OSError:
+        if not os.path.isdir(subdirectory):
+            raise
 
-faceImagesList = []
-directory = '/home/kyle/Projects/Photo A Day/Photos/'
-subdirectoryName = 'temp/'
-subdirectory = directory + subdirectoryName
-images = os.listdir(directory)
-
-try:
-    os.makedirs(subdirectory)
-except OSError:
-    if not os.path.isdir(subdirectory):
-        raise
-
-def readFaces():
+def readFaces(images, directory, subdirectory):
+    faceImagesList = []
     skipped = 0
     for index, imageName in enumerate(images, start = 1):
         imagePath = directory + imageName
         newPath = subdirectory + imageName
+        print imagePath
+        try:
+            faceImage = FaceImage(imagePath)
 
-        faceImage = FaceImage(imagePath)
-
-        if (faceImage.faceFound):
-            faceImage.move(newPath)
-            faceImagesList.append(faceImage)
-        else:
+            if (faceImage.faceFound):
+                faceImage.move(newPath)
+                faceImagesList.append(faceImage)
+            else:
+                skipped += 1
+        except AttributeError:
+            print '{0} is not an image. Skipping.'.format(imageName)
             skipped += 1
         if (index % 10 == 0):
             print '{0}/{1} files processed. {2} skipped.'.format(index, len(images), skipped)
 
     print "Could not find faces in {0} photos".format(skipped)
+    return faceImagesList
 
 def writeText(image, text):
     bottomRight = (1920 - 100, 1080 - 100)
@@ -140,7 +141,7 @@ def largestFaceArea():
     else:
         return largest.getFaceArea()
 
-def resizeAndCrop():
+def resizeAndCrop(faceImagesList):
 
     largest = largestFaceArea()
 
@@ -225,8 +226,14 @@ def createVideo(directory):
     filepath = os.path.abspath(os.curdir) + '/out.mp4'
     print 'Your video is complete and located at {0}'.format(filepath)
 
-readFaces()
-resizeAndCrop()
+
+directory = '/home/kyle/Projects/Photo A Day/Photos/'
+subdirectoryName = 'temp/'
+subdirectory = directory + subdirectoryName
+createTempDir(subdirectory)
+images = os.listdir(directory)
+faceImagesList = readFaces(images, directory, subdirectory)
+resizeAndCrop(faceImagesList)
 print 'Check photos in {0} and delete or manually fix any that did not resize properly.'.format(subdirectory)
 raw_input("Press Enter to continue...")
 renameAsNumbers(subdirectory)
