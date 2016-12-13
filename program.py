@@ -93,7 +93,7 @@ def readFaces(images, directory, subdirectory):
     for index, imageName in enumerate(images, start = 1):
         imagePath = directory + imageName
         newPath = subdirectory + imageName
-        print imagePath
+
         try:
             faceImage = FaceImage(imagePath)
 
@@ -213,13 +213,14 @@ def renameAsNumbers(directory):
             newName = "0" + newName
         os.rename(directory + image, "{0}{1}{2}".format(directory, newName, filetype))
 
-def createVideo(directory):
+def createVideo(directory, picsPerSecond, videoFPS):
     os.chdir(directory)
     images = os.listdir(directory)
     length = len(os.path.splitext(images[0])[0])
     ff = FFmpeg(
         inputs={},
-        outputs={'../out.mp4': '-framerate 3 -i %0{0}d.jpg -c:v libx264 -r 30 -pix_fmt yuv420p'.format(length)}
+        outputs={'../out.mp4': '-framerate {0} -i %0{1}d.jpg -c:v libx264 -r {2} -pix_fmt yuv420p'
+                .format(picsPerSecond, length, videoFPS)}
     )
     ff.run()
     os.chdir('..')
@@ -237,7 +238,7 @@ resizeAndCrop(faceImagesList)
 print 'Check photos in {0} and delete or manually fix any that did not resize properly.'.format(subdirectory)
 raw_input("Press Enter to continue...")
 renameAsNumbers(subdirectory)
-createVideo(subdirectory)
+createVideo(subdirectory, 3, 24)
 
 #cleanup
 shutil.rmtree(subdirectory)
