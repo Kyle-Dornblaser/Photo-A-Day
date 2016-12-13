@@ -1,5 +1,5 @@
 # Photo-A-Day
-Photo-A-Day is a Python script that allows you to convert a folder of folders of yourself into a video slideshow. It attempts to find the largest face in the photos and centers and resizes the photos to 1920 x 1080. Many photos may end up being skipped in order to accomplish this.
+Photo-A-Day is a Python script that allows you to convert a folder of pictures of yourself into a video slideshow. It attempts to find the largest face in the photos and centers and resizes the photos to 1920 x 1080. Many photos may end up being skipped in order to accomplish this.
 
 Tested with Ubuntu 16.04.1 and Python 2.7.12
 
