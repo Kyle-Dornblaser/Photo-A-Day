@@ -9,7 +9,7 @@ from ffmpy import FFmpeg
 import numpy as np
 
 class FaceImage(object):
-    cascPath = 'haarcascade_frontalface_default.xml'
+    cascPath = os.path.dirname(os.path.realpath(__file__)) + '/haarcascade_frontalface_default.xml'
     faceCascade = cv2.CascadeClassifier(cascPath)
 
     def __init__(self, path):
@@ -228,7 +228,8 @@ def createVideo(directory, picsPerSecond, videoFPS):
     print 'Your video is complete and located at {0}'.format(filepath)
 
 
-directory = '/home/kyle/Projects/Photo A Day/Photos/'
+directory = os.getcwd() + '/'
+print directory
 subdirectoryName = 'temp/'
 subdirectory = directory + subdirectoryName
 createTempDir(subdirectory)
